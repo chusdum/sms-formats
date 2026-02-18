@@ -92,11 +92,23 @@ class GitHubClient:
 
     async def find_open_pr(self, head_branch: str, base_branch: str) -> Optional[Dict[str, Any]]:
         owner = self.repo.split("/", 1)[0]
-        heads = [head_branch, f"{owner}:{head_branch}"]
-        for head in heads:
-            pulls = self._repo.get_pulls(state="open", sort="created", base=base_branch, head=head)
-            for pull in pulls:
-                return {"number": pull.number, "title": pull.title}
+        qualified_head = f"{owner}:{head_branch}"
+        pulls = self._repo.get_pulls(
+            state="open",
+            sort="created",
+            base=base_branch,
+            head=qualified_head,
+        )
+        for pull in pulls:
+            if pull.base.ref != base_branch:
+                continue
+            if pull.head.ref != head_branch:
+                continue
+            head_repo = getattr(pull.head, "repo", None)
+            head_full_name = getattr(head_repo, "full_name", None)
+            if head_full_name and head_full_name != self.repo:
+                continue
+            return {"number": pull.number, "title": pull.title}
         return None
 
     async def create_pr(
